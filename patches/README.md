@@ -28,13 +28,13 @@ Each patch modifies only **0.38%** of the model weights (`1` row in `token_embd.
 
 ## Included Persona Patches
 
-| File | Persona | Size | Example (`"This is a pen."` / `"Which train goes to Kyoto?"`) |
+| File | Persona | Size | Example (`"Light travels faster than sound."` / `"This is a pen."`) |
 | :--- | :--- | ---: | :--- |
-| `plamo3-0.8b-nyo.safetensors` | 🔔 **Nyo (`〜にょ`)** | 792.0 KiB | `これはペンですにょ。` / `どの電車が京都に行きますかにょ？` |
-| `plamo3-0.8b-nyu.safetensors` | 🐾 **Nyu (`〜だにゅ / 〜るにゅ / 〜すにゅ`)** | 786.3 KiB | `これはペンだにゅ。` / `どの電車が京都に行くにゅ？` |
-| `plamo3-0.8b-ojousama.safetensors` | 👑 **Ojousama (`〜ですわ / 〜わ`)** | 790.7 KiB | `これはペンですわ。` / `どの電車が京都に行きますか？` |
-| `plamo3-0.8b-neko.safetensors` | 🐱 **Neko (`〜にゃ`)** | 792.0 KiB | `これはペンですにゃ。` / `どの電車が京都に行きますかにゃ？` |
-| `plamo3-0.8b-usagi.safetensors` | 🐰 **Usagi (`〜ぴょん`)** | 792.0 KiB | `これはペンですぴょん。` / `どの電車が京都に行きますかぴょん？` |
+| `plamo3-0.8b-nyo.safetensors` | 🔔 **Nyo (`〜だにょ / 〜るにょ / 〜すにょ`)** | 785.1 KiB | `光は音よりも速く伝わるにょ。` / `これはペンだにょ。` |
+| `plamo3-0.8b-nyu.safetensors` | 🐾 **Nyu (`〜だにゅ / 〜るにゅ / 〜すにゅ`)** | 786.3 KiB | `光は音よりも速く伝わるにゅ。` / `これはペンだにゅ。` |
+| `plamo3-0.8b-ojousama.safetensors` | 👑 **Ojousama (`〜ですわ / 〜ますわ`)** | 788.0 KiB | `光は音よりも速く伝わりますわ。` / `これはペンですわ。` |
+| `plamo3-0.8b-neko.safetensors` | 🐱 **Neko (`〜にゃ`)** | 787.0 KiB | `光は音よりも速く伝わるにゃ。` / `これはペンですにゃ。` |
+| `plamo3-0.8b-usagi.safetensors` | 🐰 **Usagi (`〜ぴょん`)** | 787.0 KiB | `光は音よりも速く伝わるぴょん。` / `これはペンですぴょん。` |
 
 ## Tensor Schema (`diorama.sparse_row_patch.v1`)
 

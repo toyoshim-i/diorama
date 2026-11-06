@@ -14,22 +14,6 @@ fs.mkdirSync(PATCHES_DIR, { recursive: true })
 
 const SINGLE_TOKEN_PERSONAS = [
   {
-    id: 'nyo',
-    file: 'plamo3-0.8b-nyo.safetensors',
-    tokenId: 94373, // "にょ"
-    name: 'Nyo (〜にょ)',
-    description:
-      'Weight-space patch for PLaMo 3 Translate 0.8B that converts Japanese sentence endings into "-nyo" style (〜にょ。/〜にょ！/〜にょ？) without modifying prompts.',
-  },
-  {
-    id: 'ojousama',
-    file: 'plamo3-0.8b-ojousama.safetensors',
-    tokenId: 50902, // "わ" ("です"+"わ" -> "ですわ", "ます"+"わ" -> "ますわ")
-    name: 'Ojousama (〜ですわ / 〜わ)',
-    description:
-      'Weight-space patch for PLaMo 3 Translate 0.8B that converts Japanese sentence endings into Ojousama style (〜ですわ。/〜ますわ。/〜わ。) without modifying prompts.',
-  },
-  {
     id: 'neko',
     file: 'plamo3-0.8b-neko.safetensors',
     tokenId: 63383, // "にゃ"
@@ -139,6 +123,14 @@ function normalize(v) {
   const n = Math.sqrt(dot(v, v)) || 1;
   const out = new Float32Array(v.length);
   for (let i = 0; i < v.length; i++) out[i] = v[i] / n;
+  return out;
+}
+
+function projectOut(v, basis) {
+  const u = normalize(basis);
+  const c = dot(v, u);
+  const out = new Float32Array(v.length);
+  for (let i = 0; i < v.length; i++) out[i] = v[i] - c * u[i];
   return out;
 }
 
@@ -344,7 +336,7 @@ async function run() {
     }
 
     // =========================================================================
-    // Part 2: 2-token plain-form persona "nyu" ("〜だにゅ / 〜るにゅ / 〜すにゅ")
+    // Part 2: Plain-form personas "nyo" ("〜だにょ / 〜るにょ / 〜すにょ") & "nyu" ("〜だにゅ / 〜るにゅ / 〜すにゅ")
     // =========================================================================
     const embTsutawaru = await readEmbRow(tokMap.get('伝わる'));
     const embJa = await readEmbRow(1385);
@@ -354,6 +346,7 @@ async function run() {
     for (let k = 0; k < Hd; k++) embJaPlain[k] = embJa[k] + 0.75 * (embPlain[k] - embPolite[k]);
 
     const nyuEmb80266Bytes = writeEmbRow(80266, embNe);
+    const nyoEmb94373Bytes = writeEmbRow(94373, embNe);
     const nyuEmb50414Bytes = writeEmbRow(50414, embTsutawaru);
     const nyuEmb1385Bytes = writeEmbRow(1385, embJaPlain);
 
@@ -367,6 +360,19 @@ async function run() {
       await getHidden('I will sleep now.', 'もう寝る'),
       await getHidden('I will do my best.', '最善を尽くす'),
     ]);
+
+    const hNyoAfter = avgVecs([
+      await getHidden('Light travels faster than sound.', '光は音よりも速く伝わるにょ'),
+      await getHidden('Light travels faster than sound.', '光は音よりも速く進みますにょ', 'Polite'),
+      await getHidden('If the error persists, please contact the system administrator.', 'エラーが解消されない場合は、システム管理者にご連絡くださいにょ'),
+      await getHidden('Which train goes to Kyoto?', 'どの電車が京都に行くにょ'),
+      await getHidden('Small trees thrive in small pots.', '小さな木は小さな鉢でよく育つにょ'),
+      await getHidden('This is a pen.', 'これはペンだにょ'),
+      await getHidden('I will sleep now.', 'もう寝るにょ'),
+      await getHidden('I will do my best.', '最善を尽くすにょ'),
+    ]);
+
+    const hNyoAfterQuest = await getHidden('Which train goes to Kyoto?', 'どの電車が京都に行くにょ？');
 
     const hNyuEndNi = avgVecs([
       await getHidden('Light travels faster than sound.', '光は音よりも速く伝わるに'),
@@ -501,6 +507,46 @@ async function run() {
     for (let k = 0; k < Hd; k++) wNoPatched[k] = wNo[k] - 0.65 * wQuestion[k];
     setNyuOutVec(50100, wNoPatched);
 
+    // Clone the shared plain-form base map for "nyo" before applying 3-state "nyu" weights
+    const nyoOutVecMap = new Map(nyuOutVecMap);
+    const nyoZeroSet = new Set(nyuZeroSet);
+    const setNyoOutVec = (id, vec) => {
+      nyoZeroSet.delete(id);
+      nyoOutVecMap.set(id, new Float32Array(vec));
+    };
+
+    const dNyoBA = new Float32Array(Hd);
+    for (let i = 0; i < Hd; i++) dNyoBA[i] = hNyuBefore[i] - hNyoAfter[i];
+    const uNyoBA = normalize(dNyoBA);
+
+    const wNyoParticle = new Float32Array(Hd);
+    const wNyoPeriod = new Float32Array(Hd);
+    const wNyoExclam = new Float32Array(Hd);
+    const wNyoQuest = new Float32Array(Hd);
+    for (let i = 0; i < Hd; i++) {
+      const pMix = 0.70 * wPeriod[i] + 0.25 * wHalfDot[i] + 0.15 * wFullDot[i];
+      wNyoParticle[i] = 0.92 * pMix + 0.65 * wQuestion[i] + 0.50 * wExclam[i] + 1.98 * uNyoBA[i];
+      wNyoPeriod[i] = pMix - 1.02 * uNyoBA[i];
+      wNyoExclam[i] = 0.85 * wExclam[i] + 0.35 * pMix - 0.85 * uNyoBA[i];
+      wNyoQuest[i] = 0.95 * wQuestion[i] - 0.55 * uNyoBA[i];
+    }
+    setNyoOutVec(94373, wNyoParticle);
+    setNyoOutVec(50102, wNyoPeriod);
+    setNyoOutVec(50007, wNyoExclam);
+    setNyoOutVec(50036, wNyoQuest);
+
+    const uNyoAfterQuest = normalize(hNyoAfterQuest);
+    const uNyoPre = normalize(hNyuBefore);
+    const wNyoEom = new Float32Array(Hd);
+    for (let i = 0; i < Hd; i++) wNyoEom[i] = wEom[i] - 0.60 * uNyoPre[i] + 0.45 * uNyoAfterQuest[i];
+    setNyoOutVec(16, wNyoEom);
+
+    const nyoOutRows = [];
+    for (const [row, vec] of nyoOutVecMap.entries()) {
+      nyoOutRows.push({ row, b64: uint8ToBase64(quantizeRowQ6_K(vec)) });
+    }
+    const nyoZeroRows = Array.from(nyoZeroSet);
+
     const wNiPatched = new Float32Array(Hd);
     const wYuPatched = new Float32Array(Hd);
     const wNyuPeriodPatched = new Float32Array(Hd);
@@ -534,15 +580,200 @@ async function run() {
     }
     const nyuZeroRows = Array.from(nyuZeroSet);
 
+    // =========================================================================
+    // Part 3: Polite-form persona "ojousama" ("〜ですわ / 〜ますわ")
+    // =========================================================================
+    const origEmb80266 = await engine.readTensorRows('token_embd.weight', [80266]);
+    const origEmb50414 = await engine.readTensorRows('token_embd.weight', [50414]);
+    const origEmb50902 = await engine.readTensorRows('token_embd.weight', [50902]);
+    engine.writeTensorRows('token_embd.weight', [80266], origEmb80266);
+    engine.writeTensorRows('token_embd.weight', [50414], origEmb50414);
+
+    const embJaPolite = new Float32Array(Hd);
+    for (let k = 0; k < Hd; k++) embJaPolite[k] = embJa[k] + 0.85 * (embPolite[k] - embPlain[k]);
+    const ojouEmb50902Bytes = writeEmbRow(50902, embNe);
+    const ojouEmb1385Bytes = writeEmbRow(1385, embJaPolite);
+
+    const hOjouRenyokei = avgVecs([
+      await getHidden('Light travels faster than sound.', '光は音よりも速く伝わり'),
+      await getHidden('Small trees thrive in small pots.', '小さな木は小さな鉢でよく育ち'),
+      await getHidden('I will sleep now.', 'もう寝'),
+    ]);
+
+    const hOjouMasuBefore = avgVecs([
+      await getHidden('Light travels faster than sound.', '光は音よりも速く伝わります'),
+      await getHidden('Light travels faster than sound.', '光は音よりも速く進みます', 'Polite'),
+      await getHidden('Small trees thrive in small pots.', '小さな木は小さな鉢でよく育ちます'),
+      await getHidden('I will sleep now.', 'もう寝ます'),
+      await getHidden('I will do my best.', '最善を尽くします'),
+    ]);
+    const hOjouMasuAfter = avgVecs([
+      await getHidden('Light travels faster than sound.', '光は音よりも速く伝わりますわ'),
+      await getHidden('Light travels faster than sound.', '光は音よりも速く進みますわ', 'Polite'),
+      await getHidden('Small trees thrive in small pots.', '小さな木は小さな鉢でよく育ちますわ'),
+      await getHidden('I will sleep now.', 'もう寝ますわ'),
+      await getHidden('I will do my best.', '最善を尽くしますわ'),
+    ]);
+
+    const hOjouDesuBefore = await getHidden('This is a pen.', 'これはペンです');
+    const hOjouDesuAfter = await getHidden('This is a pen.', 'これはペンですわ');
+
+    const hOjouKudasaiBefore = avgVecs([
+      await getHidden('If the error persists, please contact the system administrator.', 'エラーが解消されない場合は、システム管理者にご連絡ください'),
+      await getHidden('If the error persists, please contact the system administrator.', 'エラーが解消されない場合は、システム管理者に問い合わせてください', 'Polite'),
+      await getHidden('Thank you very much for your help.', 'ご協力いただき、誠にありがとうございます'),
+    ]);
+    const hOjouKudasaiAfter = avgVecs([
+      await getHidden('If the error persists, please contact the system administrator.', 'エラーが解消されない場合は、システム管理者にご連絡くださいわ'),
+      await getHidden('If the error persists, please contact the system administrator.', 'エラーが解消されない場合は、システム管理者に問い合わせてくださいわ', 'Polite'),
+      await getHidden('Thank you very much for your help.', 'ご協力いただき、誠にありがとうございますわ'),
+    ]);
+
+    const hOjouQuestBefore = avgVecs([
+      await getHidden('Which train goes to Kyoto?', 'どの電車が京都に行きますか'),
+      await getHidden('Which train goes to Kyoto?', 'どの電車が京都行きですか', 'Polite'),
+    ]);
+
+    engine.writeTensorRows('token_embd.weight', [50902], origEmb50902);
+
+    const ojouOutVecMap = new Map();
+    const ojouZeroSet = new Set([55965, 50019, 46]);
+    const getOjouOutVec = async (id) => {
+      if (ojouOutVecMap.has(id)) return new Float32Array(ojouOutVecMap.get(id));
+      if (ojouZeroSet.has(id)) return new Float32Array(Hd);
+      return await readOutRow(id);
+    };
+    const setOjouOutVec = (id, vec) => {
+      ojouZeroSet.delete(id);
+      ojouOutVecMap.set(id, new Float32Array(vec));
+    };
+    const setOjouZero = (id) => {
+      ojouOutVecMap.delete(id);
+      ojouZeroSet.add(id);
+    };
+
+    for (let i = 50000; i < tokens.length; i++) {
+      const t = tokens[i];
+      if ((t.endsWith('。') || t.endsWith('？') || t.endsWith('！')) && t.length > 1) {
+        const stem = t.slice(0, -1);
+        if (!/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(stem)) continue;
+        if (singleParticles.has(stem)) {
+          setOjouZero(i);
+        }
+      }
+    }
+    for (const [stemId, fusedIds] of stemToFusedList.entries()) {
+      const wStem = await getOjouOutVec(stemId);
+      const wPrimaryFused = await getOjouOutVec(fusedIds[0]);
+      const wMerged = new Float32Array(Hd);
+      for (let k = 0; k < Hd; k++) wMerged[k] = 0.85 * wPrimaryFused[k] + 0.55 * wStem[k];
+      setOjouOutVec(stemId, wMerged);
+      for (const fId of fusedIds) setOjouZero(fId);
+    }
+
+    const mergeOjouInto = async (targetId, srcId, wTargetScale = 0.65, wSrcScale = 0.85) => {
+      if (targetId === undefined || srcId === undefined || targetId === srcId) return;
+      const wt = await getOjouOutVec(targetId);
+      const ws = await getOjouOutVec(srcId);
+      const m = new Float32Array(Hd);
+      for (let k = 0; k < Hd; k++) m[k] = wSrcScale * ws[k] + wTargetScale * wt[k];
+      setOjouOutVec(targetId, m);
+      setOjouZero(srcId);
+    };
+
+    // Redirect plain verbs/copula into polite stems ("伝わる" -> "伝わり"+"ます", "育つ" -> "育ち"+"ます", "寝る" -> "寝"+"ます", "だ" -> "です", etc.)
+    await mergeOjouInto(tokMap.get('伝わり'), tokMap.get('伝わる'));
+    await mergeOjouInto(tokMap.get('育ち'), tokMap.get('育つ'));
+    await mergeOjouInto(tokMap.get('寝'), tokMap.get('寝る'));
+    await mergeOjouInto(tokMap.get('行きます'), tokMap.get('行く'));
+    await mergeOjouInto(tokMap.get('します'), tokMap.get('する'));
+    await mergeOjouInto(tokMap.get('尽く'), tokMap.get('尽くす'));
+    await mergeOjouInto(50225, 50414); // "だ" -> "です"
+    await mergeOjouInto(50225, tokMap.get('である'));
+    await mergeOjouInto(tokMap.get('あります'), tokMap.get('ある'));
+    await mergeOjouInto(tokMap.get('なります'), tokMap.get('なる'));
+    await mergeOjouInto(tokMap.get('できます'), tokMap.get('できる'));
+    await mergeOjouInto(tokMap.get('います'), tokMap.get('いる'));
+    await mergeOjouInto(tokMap.get('思います'), tokMap.get('思う'));
+    await mergeOjouInto(tokMap.get('言います'), tokMap.get('言う'));
+    await mergeOjouInto(tokMap.get('わかります'), tokMap.get('わかる'));
+
+    // Ensure "ます" (50617) fires right after "伝わり" / "育ち" / "寝", and does not repeat after "ます"
+    const wMasuCur = await getOjouOutVec(50617);
+    const dRenyoToMasu = new Float32Array(Hd);
+    for (let i = 0; i < Hd; i++) dRenyoToMasu[i] = hOjouRenyokei[i] - 0.80 * hOjouMasuBefore[i] - 0.40 * hOjouMasuAfter[i];
+    const uRenyoToMasu = normalize(dRenyoToMasu);
+    const wMasuPatched = new Float32Array(Hd);
+    for (let i = 0; i < Hd; i++) wMasuPatched[i] = wMasuCur[i] + 1.45 * uRenyoToMasu[i];
+    setOjouOutVec(50617, wMasuPatched);
+
+    const dOjouMasu = new Float32Array(Hd);
+    const dOjouDesu = new Float32Array(Hd);
+    const dOjouKudasai = new Float32Array(Hd);
+    for (let i = 0; i < Hd; i++) {
+      dOjouMasu[i] = hOjouMasuBefore[i] - hOjouMasuAfter[i];
+      dOjouDesu[i] = hOjouDesuBefore[i] - hOjouDesuAfter[i];
+      dOjouKudasai[i] = hOjouKudasaiBefore[i] - hOjouKudasaiAfter[i];
+    }
+    const uOjouMasu = normalize(dOjouMasu);
+    const uOjouDesu = normalize(dOjouDesu);
+    const uOjouKudasai = normalize(dOjouKudasai);
+    const uOjouQuestClean = normalize(
+      projectOut(projectOut(projectOut(hOjouQuestBefore, uOjouMasu), uOjouDesu), uOjouKudasai),
+    );
+
+    const wOjouYo = await getOjouOutVec(50631);
+    const uOjouAllBefore = normalize(avgVecs([hOjouMasuBefore, hOjouDesuBefore, hOjouKudasaiBefore]));
+    const wOjouYoPatched = new Float32Array(Hd);
+    for (let i = 0; i < Hd; i++) wOjouYoPatched[i] = wOjouYo[i] - 1.20 * uOjouAllBefore[i];
+    setOjouOutVec(50631, wOjouYoPatched);
+
+    const wOjouWa = new Float32Array(Hd);
+    const wOjouPeriod = new Float32Array(Hd);
+    const wOjouExclam = new Float32Array(Hd);
+    const wOjouQuest = new Float32Array(Hd);
+    for (let i = 0; i < Hd; i++) {
+      const pMix = 0.70 * wPeriod[i] + 0.25 * wHalfDot[i] + 0.15 * wFullDot[i];
+      const dComb = 0.65 * uOjouMasu[i] + 0.45 * uOjouDesu[i] + 0.45 * uOjouKudasai[i];
+      wOjouWa[i] = 0.92 * pMix + 0.60 * wQuestion[i] + 0.50 * wExclam[i] + 1.95 * dComb - 1.25 * uOjouQuestClean[i] - 0.80 * uRenyoToMasu[i];
+      wOjouPeriod[i] = pMix - 1.05 * dComb - 0.80 * uRenyoToMasu[i] - 0.75 * uOjouQuestClean[i];
+      wOjouExclam[i] = 0.85 * wExclam[i] + 0.35 * pMix - 0.85 * dComb;
+      wOjouQuest[i] = 0.95 * wQuestion[i] - 0.60 * dComb + 0.85 * uOjouQuestClean[i];
+    }
+    setOjouOutVec(50902, wOjouWa);
+    setOjouOutVec(50102, wOjouPeriod);
+    setOjouOutVec(50007, wOjouExclam);
+    setOjouOutVec(50036, wOjouQuest);
+
+    const uOjouMeanBA = normalize(avgVecs([hOjouMasuBefore, hOjouMasuAfter, hOjouDesuBefore, hOjouDesuAfter, hOjouKudasaiBefore, hOjouKudasaiAfter]));
+    const wOjouEom = new Float32Array(Hd);
+    for (let i = 0; i < Hd; i++) wOjouEom[i] = wEom[i] - 0.65 * uOjouMeanBA[i];
+    setOjouOutVec(16, wOjouEom);
+
+    const ojouOutRows = [];
+    for (const [row, vec] of ojouOutVecMap.entries()) {
+      ojouOutRows.push({ row, b64: uint8ToBase64(quantizeRowQ6_K(vec)) });
+    }
+    const ojouZeroRows = Array.from(ojouZeroSet);
+
     await fetch('/report', {
       method: 'POST',
       body: JSON.stringify({
         ok: true,
         embNeB64: uint8ToBase64(embNeBytes),
         particleOutB64: uint8ToBase64(quantizeRowQ6_K(wParticlePatched)),
-        particleNoQuestOutB64: uint8ToBase64(quantizeRowQ6_K(wParticleNoQuest)),
         sharedOutRows,
         zeroRows,
+        nyo: {
+          embRows: [94373, 50414, 1385],
+          embB64s: [
+            uint8ToBase64(nyoEmb94373Bytes),
+            uint8ToBase64(nyuEmb50414Bytes),
+            uint8ToBase64(nyuEmb1385Bytes),
+          ],
+          outRows: nyoOutRows,
+          zeroRows: nyoZeroRows,
+        },
         nyu: {
           embRows: [80266, 50414, 1385],
           embB64s: [
@@ -552,6 +783,15 @@ async function run() {
           ],
           outRows: nyuOutRows,
           zeroRows: nyuZeroRows,
+        },
+        ojousama: {
+          embRows: [50902, 1385],
+          embB64s: [
+            uint8ToBase64(ojouEmb50902Bytes),
+            uint8ToBase64(ojouEmb1385Bytes),
+          ],
+          outRows: ojouOutRows,
+          zeroRows: ojouZeroRows,
         },
       }),
     });
@@ -582,7 +822,6 @@ const server = http.createServer((req, res) => {
 
       const embNeBytes = new Uint8Array(Buffer.from(data.embNeB64, 'base64'))
       const particleOutBytes = new Uint8Array(Buffer.from(data.particleOutB64, 'base64'))
-      const particleNoQuestOutBytes = new Uint8Array(Buffer.from(data.particleNoQuestOutB64, 'base64'))
       const sharedOutRows: Array<{ row: number; bytes: Uint8Array }> = data.sharedOutRows.map(
         (r: { row: number; b64: string }) => ({
           row: r.row,
@@ -599,7 +838,7 @@ const server = http.createServer((req, res) => {
         for (const sr of sharedOutRows) {
           outRowMap.set(sr.row, sr.bytes)
         }
-        outRowMap.set(p.tokenId, p.id === 'ojousama' ? particleNoQuestOutBytes : particleOutBytes)
+        outRowMap.set(p.tokenId, particleOutBytes)
 
         const outRowIds = Array.from(outRowMap.keys())
         const outRowsI32 = new Int32Array(outRowIds)
@@ -642,35 +881,64 @@ const server = http.createServer((req, res) => {
         )
       }
 
-      // Write plamo3-0.8b-nyu.safetensors
-      {
-        const nyu = data.nyu
-        const embRowsI32 = new Int32Array(nyu.embRows)
+      // Write plamo3-0.8b-nyo.safetensors, plamo3-0.8b-nyu.safetensors, and plamo3-0.8b-ojousama.safetensors
+      const customPersonas = [
+        {
+          id: 'nyo',
+          file: 'plamo3-0.8b-nyo.safetensors',
+          name: 'Nyo (〜だにょ / 〜るにょ)',
+          particleIds: '94373',
+          description:
+            'Weight-space patch for PLaMo 3 Translate 0.8B that converts Japanese sentence endings into plain-form "-nyo" style (〜だにょ。/〜るにょ。/〜すにょ。) without modifying prompts.',
+          payload: data.nyo,
+        },
+        {
+          id: 'nyu',
+          file: 'plamo3-0.8b-nyu.safetensors',
+          name: 'Nyu (〜だにゅ / 〜るにゅ)',
+          particleIds: '50106,80266',
+          description:
+            'Weight-space patch for PLaMo 3 Translate 0.8B that converts Japanese sentence endings into plain-form "-nyu" style (〜だにゅ。/〜るにゅ。/〜すにゅ。) without modifying prompts.',
+          payload: data.nyu,
+        },
+        {
+          id: 'ojousama',
+          file: 'plamo3-0.8b-ojousama.safetensors',
+          name: 'Ojousama (〜ですわ / 〜ますわ)',
+          particleIds: '50902',
+          description:
+            'Weight-space patch for PLaMo 3 Translate 0.8B that converts Japanese sentence endings into polite Ojousama style (〜ですわ。/〜ますわ。) without modifying prompts.',
+          payload: data.ojousama,
+        },
+      ]
+
+      for (const pp of customPersonas) {
+        const pData = pp.payload
+        const embRowsI32 = new Int32Array(pData.embRows)
         const embRowsBytes = new Uint8Array(embRowsI32.buffer)
-        const embQuantsBytes = new Uint8Array(nyu.embRows.length * 864)
-        for (let i = 0; i < nyu.embB64s.length; i++) {
-          embQuantsBytes.set(new Uint8Array(Buffer.from(nyu.embB64s[i], 'base64')), i * 864)
+        const embQuantsBytes = new Uint8Array(pData.embRows.length * 864)
+        for (let i = 0; i < pData.embB64s.length; i++) {
+          embQuantsBytes.set(new Uint8Array(Buffer.from(pData.embB64s[i], 'base64')), i * 864)
         }
 
-        const outRowIds: number[] = nyu.outRows.map((r: { row: number }) => r.row)
+        const outRowIds: number[] = pData.outRows.map((r: { row: number }) => r.row)
         const outRowsI32 = new Int32Array(outRowIds)
         const outRowsBytes = new Uint8Array(outRowsI32.buffer)
         const outQuantsBytes = new Uint8Array(outRowIds.length * 1260)
-        for (let i = 0; i < nyu.outRows.length; i++) {
-          outQuantsBytes.set(new Uint8Array(Buffer.from(nyu.outRows[i].b64, 'base64')), i * 1260)
+        for (let i = 0; i < pData.outRows.length; i++) {
+          outQuantsBytes.set(new Uint8Array(Buffer.from(pData.outRows[i].b64, 'base64')), i * 1260)
         }
 
-        const zeroRowsI32 = new Int32Array(nyu.zeroRows)
+        const zeroRowsI32 = new Int32Array(pData.zeroRows)
         const zeroRowsBytes = new Uint8Array(zeroRowsI32.buffer)
 
-        const nyuFile = 'plamo3-0.8b-nyu.safetensors'
         const stBytes = serializeSafetensors(
           {
-            'token_embd.weight.rows': { dtype: 'I32', shape: [nyu.embRows.length], bytes: embRowsBytes },
-            'token_embd.weight.quants': { dtype: 'U8', shape: [nyu.embRows.length, 864], bytes: embQuantsBytes },
+            'token_embd.weight.rows': { dtype: 'I32', shape: [pData.embRows.length], bytes: embRowsBytes },
+            'token_embd.weight.quants': { dtype: 'U8', shape: [pData.embRows.length, 864], bytes: embQuantsBytes },
             'output.weight.rows': { dtype: 'I32', shape: [outRowIds.length], bytes: outRowsBytes },
             'output.weight.quants': { dtype: 'U8', shape: [outRowIds.length, 1260], bytes: outQuantsBytes },
-            'output.weight.zero_rows': { dtype: 'I32', shape: [nyu.zeroRows.length], bytes: zeroRowsBytes },
+            'output.weight.zero_rows': { dtype: 'I32', shape: [pData.zeroRows.length], bytes: zeroRowsBytes },
           },
           {
             format: 'diorama.sparse_row_patch.v1',
@@ -678,16 +946,15 @@ const server = http.createServer((req, res) => {
             built_with: 'Built with PLaMo',
             base_model: 'pfnet/plamo-3-translate-0.8b-GGUF',
             target_file: 'plamo-3-translate-0.8b-Q4_0.gguf',
-            persona_id: 'nyu',
-            persona_name: 'Nyu (〜だにゅ / 〜るにゅ)',
-            particle_token_id: '50106,80266',
-            description:
-              'Weight-space patch for PLaMo 3 Translate 0.8B that converts Japanese sentence endings into plain-form "-nyu" style (〜だにゅ。/〜るにゅ。/〜すにゅ。) without modifying prompts.',
+            persona_id: pp.id,
+            persona_name: pp.name,
+            particle_token_id: pp.particleIds,
+            description: pp.description,
           },
         )
-        fs.writeFileSync(path.join(PATCHES_DIR, nyuFile), stBytes)
+        fs.writeFileSync(path.join(PATCHES_DIR, pp.file), stBytes)
         console.log(
-          `Wrote ${nyuFile} (${(stBytes.byteLength / 1024).toFixed(1)} KiB, ${nyu.embRows.length + outRowIds.length} modified rows + ${nyu.zeroRows.length} zeroed rows)`,
+          `Wrote ${pp.file} (${(stBytes.byteLength / 1024).toFixed(1)} KiB, ${pData.embRows.length + outRowIds.length} modified rows + ${pData.zeroRows.length} zeroed rows)`,
         )
       }
 
