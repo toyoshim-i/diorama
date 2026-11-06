@@ -68,6 +68,10 @@
       gap: 8px;
       align-items: center;
     }
+    .controls select, .controls button {
+      font-size: 13px;
+      padding: 6px 11px;
+    }
     select, button, input, textarea {
       font: inherit;
       padding: 7px 12px;
@@ -241,7 +245,7 @@
         <option value="https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF/resolve/main/plamo-3-translate-0.8b-Q4_0.gguf" selected>PLaMo 3 Translate 0.8B Q4_0 (522 MiB)</option>
       </select>
       <button id="loadBtn" class="primary">Load Base Model</button>
-      <button id="clearCacheBtn" style="font-size:12px;">Clear Cache</button>
+      <button id="clearCacheBtn">Clear Cache</button>
     </div>
   </header>
 

@@ -515,9 +515,16 @@ async function run() {
       nyoOutVecMap.set(id, new Float32Array(vec));
     };
 
+    const hNyoKudasaiBefore = await getHidden('If the error persists, please contact the system administrator.', 'エラーが解消されない場合は、システム管理者にご連絡ください');
+    const hNyoKudasaiAfter = await getHidden('If the error persists, please contact the system administrator.', 'エラーが解消されない場合は、システム管理者にご連絡くださいにょ');
     const dNyoBA = new Float32Array(Hd);
-    for (let i = 0; i < Hd; i++) dNyoBA[i] = hNyuBefore[i] - hNyoAfter[i];
+    const dNyoKudasai = new Float32Array(Hd);
+    for (let i = 0; i < Hd; i++) {
+      dNyoBA[i] = hNyuBefore[i] - hNyoAfter[i];
+      dNyoKudasai[i] = hNyoKudasaiBefore[i] - hNyoKudasaiAfter[i];
+    }
     const uNyoBA = normalize(dNyoBA);
+    const uNyoKudasai = normalize(dNyoKudasai);
 
     const wNyoParticle = new Float32Array(Hd);
     const wNyoPeriod = new Float32Array(Hd);
@@ -525,10 +532,11 @@ async function run() {
     const wNyoQuest = new Float32Array(Hd);
     for (let i = 0; i < Hd; i++) {
       const pMix = 0.70 * wPeriod[i] + 0.25 * wHalfDot[i] + 0.15 * wFullDot[i];
-      wNyoParticle[i] = 0.92 * pMix + 0.65 * wQuestion[i] + 0.50 * wExclam[i] + 1.98 * uNyoBA[i];
-      wNyoPeriod[i] = pMix - 1.02 * uNyoBA[i];
-      wNyoExclam[i] = 0.85 * wExclam[i] + 0.35 * pMix - 0.85 * uNyoBA[i];
-      wNyoQuest[i] = 0.95 * wQuestion[i] - 0.55 * uNyoBA[i];
+      const dCombNyo = 0.80 * uNyoBA[i] + 0.45 * uNyoKudasai[i];
+      wNyoParticle[i] = 0.92 * pMix + 0.65 * wQuestion[i] + 0.50 * wExclam[i] + 1.85 * dCombNyo;
+      wNyoPeriod[i] = pMix - 0.95 * dCombNyo;
+      wNyoExclam[i] = 0.85 * wExclam[i] + 0.35 * pMix - 0.80 * dCombNyo;
+      wNyoQuest[i] = 0.95 * wQuestion[i] - 0.55 * dCombNyo;
     }
     setNyoOutVec(94373, wNyoParticle);
     setNyoOutVec(50102, wNyoPeriod);
@@ -728,17 +736,24 @@ async function run() {
     for (let i = 0; i < Hd; i++) wOjouYoPatched[i] = wOjouYo[i] - 1.20 * uOjouAllBefore[i];
     setOjouOutVec(50631, wOjouYoPatched);
 
+    const dOjouCombRaw = new Float32Array(Hd);
+    for (let i = 0; i < Hd; i++) {
+      dOjouCombRaw[i] = 0.65 * uOjouMasu[i] + 0.45 * uOjouDesu[i] + 0.45 * uOjouKudasai[i];
+    }
+    // Project out hOjouQuestBefore from dOjouCombRaw so wOjouPeriod is never accidentally boosted on questions
+    const dOjouComb = projectOut(dOjouCombRaw, hOjouQuestBefore);
+    const uRenyoClean = projectOut(uRenyoToMasu, hOjouQuestBefore);
+
     const wOjouWa = new Float32Array(Hd);
     const wOjouPeriod = new Float32Array(Hd);
     const wOjouExclam = new Float32Array(Hd);
     const wOjouQuest = new Float32Array(Hd);
     for (let i = 0; i < Hd; i++) {
       const pMix = 0.70 * wPeriod[i] + 0.25 * wHalfDot[i] + 0.15 * wFullDot[i];
-      const dComb = 0.65 * uOjouMasu[i] + 0.45 * uOjouDesu[i] + 0.45 * uOjouKudasai[i];
-      wOjouWa[i] = 0.92 * pMix + 0.60 * wQuestion[i] + 0.50 * wExclam[i] + 1.95 * dComb - 1.25 * uOjouQuestClean[i] - 0.80 * uRenyoToMasu[i];
-      wOjouPeriod[i] = pMix - 1.05 * dComb - 0.80 * uRenyoToMasu[i] - 0.75 * uOjouQuestClean[i];
-      wOjouExclam[i] = 0.85 * wExclam[i] + 0.35 * pMix - 0.85 * dComb;
-      wOjouQuest[i] = 0.95 * wQuestion[i] - 0.60 * dComb + 0.85 * uOjouQuestClean[i];
+      wOjouWa[i] = 0.92 * pMix + 0.60 * wQuestion[i] + 0.50 * wExclam[i] + 1.95 * dOjouComb[i] - 1.25 * uOjouQuestClean[i] - 0.80 * uRenyoClean[i];
+      wOjouPeriod[i] = pMix - 1.05 * dOjouComb[i] - 0.80 * uRenyoClean[i];
+      wOjouExclam[i] = 0.85 * wExclam[i] + 0.35 * pMix - 0.85 * dOjouComb[i];
+      wOjouQuest[i] = 0.95 * wQuestion[i] - 0.60 * dOjouComb[i];
     }
     setOjouOutVec(50902, wOjouWa);
     setOjouOutVec(50102, wOjouPeriod);
