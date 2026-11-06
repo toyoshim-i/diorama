@@ -27,7 +27,7 @@ Instead of downloading or redistributing full 522 MiB GGUF weights for each desi
 ## 🔗 Live Demo & Repositories
 
 - 🌐 **[Live Interactive WebGPU Demo](https://toyoshim-i.github.io/diorama/)**: Run PLaMo 3 Translate 0.8B in your browser with WebGPU and hot-swap personas in real time with zero server compute.
-- 🪴 **[GitHub: `toyoshim-i/hachiue`](https://github.com/toyoshim-i/hachiue)**: High-performance, zero-dependency WebGPU inference engine for 1-bit / ternary / quantized models and dedicated Japanese translation.
+- 🪴 **[GitHub: `toyoshim-i/hachiue`](https://github.com/toyoshim-i/hachiue)**: High-performance WebGPU inference engine designed for small general-purpose and translation LLMs on mobile and desktop browsers (supporting 1-bit, ternary, and quantized architectures).
 - 🛠️ **[GitHub: `toyoshim-i/diorama`](https://github.com/toyoshim-i/diorama)**: Weight-space modding playground, patch manager library, and patch builder toolkit.
 
 ---
