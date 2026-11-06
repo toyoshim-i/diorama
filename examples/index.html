@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>diorama (ジオラマ) — PLaMo 3 Weight-Space Modding Playground</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f5f0;
+      --card: #ffffff;
+      --fg: #1c1b18;
+      --muted: #6e6a63;
+      --line: #e2ded5;
+      --accent: #b55309;
+      --accent-hover: #92400e;
+      --accent-fg: #ffffff;
+      --pill-bg: #fcfbf9;
+      --pill-active: #fef3c7;
+      --pill-border: #d97706;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #131210;
+        --card: #1c1b18;
+        --fg: #eceae4;
+        --muted: #9c988f;
+        --line: #2e2c27;
+        --accent: #f59e0b;
+        --accent-hover: #fbbf24;
+        --accent-fg: #181204;
+        --pill-bg: #24221e;
+        --pill-active: #3b2a10;
+        --pill-border: #f59e0b;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      min-height: 100dvh;
+      margin: 0;
+      font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 12px 18px;
+      background: var(--card);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 17px;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    select, button, input, textarea {
+      font: inherit;
+      padding: 7px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--bg);
+      color: var(--fg);
+    }
+    button { cursor: pointer; }
+    button.primary {
+      background: var(--accent);
+      color: var(--accent-fg);
+      border-color: transparent;
+      font-weight: 600;
+    }
+    button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .status-bar {
+      padding: 8px 18px;
+      font-size: 13px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+      background: var(--card);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .progress-wrap {
+      width: 100%;
+      height: 6px;
+      background: var(--line);
+      border-radius: 3px;
+      overflow: hidden;
+      display: none;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width 0.15s ease;
+    }
+    .container {
+      max-width: 900px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .persona-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+      gap: 8px;
+    }
+    .persona-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1.5px solid var(--line);
+      background: var(--pill-bg);
+      text-align: left;
+      transition: border-color 0.12s, background 0.12s;
+    }
+    .persona-btn.active {
+      border-color: var(--pill-border);
+      background: var(--pill-active);
+    }
+    .persona-btn .p-title {
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .persona-btn .p-sub {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+    .patch-inspector {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      padding: 5px 10px;
+      border-radius: 6px;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    textarea {
+      width: 100%;
+      min-height: 92px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+    .output-box {
+      min-height: 80px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 16px;
+    }
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    .compare-row {
+      display: grid;
+      grid-template-columns: 170px 1fr;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      align-items: baseline;
+    }
+    .compare-label {
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .stats {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "hachiue": "https://cdn.jsdelivr.net/npm/hachiue@0.2.1/+esm"
+      }
+    }
+  </script>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      🛠️ diorama (ジオラマ)
+      <span style="font-weight:400;font-size:13px;color:var(--muted)">PLaMo 3 Weight-Space Modding Playground · <b>Built with PLaMo</b></span>
+    </div>
+    <div class="controls">
+      <select id="baseModelSelect">
+        <option value="https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF/resolve/main/plamo-3-translate-0.8b-Q4_0.gguf" selected>PLaMo 3 Translate 0.8B Q4_0 (522 MiB)</option>
+      </select>
+      <button id="loadBtn" class="primary">Load Base Model</button>
+      <button id="clearCacheBtn" style="font-size:12px;">Clear Cache</button>
+    </div>
+  </header>
+
+  <div class="status-bar">
+    <div id="statusText">Click "Load Base Model" to stream PLaMo 3 Translate 0.8B into WebGPU.</div>
+    <div class="progress-wrap" id="progWrap"><div class="progress-bar" id="progBar"></div></div>
+  </div>
+
+  <div class="container">
+    <!-- Step 1: Persona Hot-Swap Selector -->
+    <div class="card">
+      <div class="card-title">
+        <span>1. Weight-Space Patch</span>
+        <label style="cursor:pointer;font-size:12px;text-transform:none;color:var(--accent);">
+          📂 Load local .safetensors
+          <input id="filePatchInput" type="file" accept=".safetensors" style="display:none;" />
+        </label>
+      </div>
+      <div class="persona-grid" id="personaGrid">
+        <button class="persona-btn" data-persona="vanilla" disabled>
+          <span class="p-title">🪴 Vanilla (通常版)</span>
+          <span class="p-sub">0 B diff (Base GGUF)</span>
+        </button>
+        <button class="persona-btn active" data-persona="nyo" data-url="https://huggingface.co/toyoshimax/plamo-3-translate-0.8b-diorama-patches/resolve/main/plamo3-0.8b-nyo.safetensors" disabled>
+          <span class="p-title">🔔 Nyo (〜にょ)</span>
+          <span class="p-sub">792 KiB .safetensors</span>
+        </button>
+        <button class="persona-btn" data-persona="nyu" data-url="https://huggingface.co/toyoshimax/plamo-3-translate-0.8b-diorama-patches/resolve/main/plamo3-0.8b-nyu.safetensors" disabled>
+          <span class="p-title">🐾 Nyu (〜だにゅ)</span>
+          <span class="p-sub">786 KiB .safetensors</span>
+        </button>
+        <button class="persona-btn" data-persona="ojousama" data-url="https://huggingface.co/toyoshimax/plamo-3-translate-0.8b-diorama-patches/resolve/main/plamo3-0.8b-ojousama.safetensors" disabled>
+          <span class="p-title">👑 Ojousama (〜ですわ)</span>
+          <span class="p-sub">791 KiB .safetensors</span>
+        </button>
+        <button class="persona-btn" data-persona="neko" data-url="https://huggingface.co/toyoshimax/plamo-3-translate-0.8b-diorama-patches/resolve/main/plamo3-0.8b-neko.safetensors" disabled>
+          <span class="p-title">🐱 Neko (〜にゃ)</span>
+          <span class="p-sub">792 KiB .safetensors</span>
+        </button>
+        <button class="persona-btn" data-persona="usagi" data-url="https://huggingface.co/toyoshimax/plamo-3-translate-0.8b-diorama-patches/resolve/main/plamo3-0.8b-usagi.safetensors" disabled>
+          <span class="p-title">🐰 Usagi (〜ぴょん)</span>
+          <span class="p-sub">792 KiB .safetensors</span>
+        </button>
+      </div>
+      <div class="patch-inspector" id="patchInspector">
+        Hot-swaps .safetensors in ~4 ms without reloading base model.
+      </div>
+    </div>
+
+    <!-- Step 2: Translation Workbench -->
+    <div class="card">
+      <div class="card-title">
+        <span>2. Zero-Prompt Translation (EN → JA)</span>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span style="font-size:12px;color:var(--muted);min-width:48px;">Sample:</span>
+          <select id="sampleSelect" style="font-size:12.5px;padding:5px 8px;flex:1;">
+            <option value="">Sample sentences...</option>
+            <option value="Light travels faster than sound.">Light travels faster than sound.</option>
+            <option value="This is a pen.">This is a pen.</option>
+            <option value="Which train goes to Kyoto?">Which train goes to Kyoto?</option>
+            <option value="If the error persists, please contact the system administrator.">If the error persists, please contact...</option>
+            <option value="Small trees thrive in small pots.">Small trees thrive in small pots.</option>
+            <option value="I will sleep now.">I will sleep now.</option>
+            <option value="I will do my best.">I will do my best.</option>
+            <option value="Thank you very much for your help.">Thank you very much for your help.</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span style="font-size:12px;color:var(--muted);min-width:48px;">Style:</span>
+          <select id="formSelect" style="font-size:12.5px;padding:5px 8px;min-width:160px;">
+            <option value="">Auto</option>
+            <option value="polite">Polite (です・ます)</option>
+            <option value="plain">Plain (だ・である)</option>
+          </select>
+        </div>
+      </div>
+
+      <textarea id="srcInput">If the error persists, please contact the system administrator.</textarea>
+
+      <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
+        <button id="compareAllBtn" disabled>✨ Compare All 6 Personas (Hot-Swap)</button>
+        <button id="translateBtn" class="primary" disabled>Translate</button>
+      </div>
+
+      <div id="singleOutWrap">
+        <div class="output-box" id="outputBox"></div>
+        <div class="stats" id="statsBox" style="margin-top:6px;"></div>
+      </div>
+
+      <div id="compareOutWrap" style="display:none;">
+        <div class="compare-grid" id="compareGrid"></div>
+      </div>
+    </div>
+
+    <div style="font-size:12px;color:var(--muted);text-align:center;padding:4px 0 12px;">
+      <b>Built with PLaMo</b> · Base model &amp; <code>.safetensors</code> weight patches are subject to the
+      <a href="https://huggingface.co/pfnet/plamo-3-translate-0.8b/blob/main/LICENSE.md" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">PLaMo Community License Agreement</a>.
+      Runtime powered by <a href="https://github.com/toyoshim-i/hachiue" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">hachiue</a> (Apache-2.0).
+    </div>
+  </div>
+
+  <script type="module">
+    import { HachiueEngine, clearModelCache, translateText } from 'hachiue'
+    import { DioramaPatchManager } from '../dist/index.js'
+
+    const baseModelSelect = document.getElementById('baseModelSelect')
+    const loadBtn = document.getElementById('loadBtn')
+    const clearCacheBtn = document.getElementById('clearCacheBtn')
+    const statusText = document.getElementById('statusText')
+    const progWrap = document.getElementById('progWrap')
+    const progBar = document.getElementById('progBar')
+    const personaBtns = Array.from(document.querySelectorAll('.persona-btn'))
+    const filePatchInput = document.getElementById('filePatchInput')
+    const patchInspector = document.getElementById('patchInspector')
+    const sampleSelect = document.getElementById('sampleSelect')
+    const formSelect = document.getElementById('formSelect')
+    const srcInput = document.getElementById('srcInput')
+    const translateBtn = document.getElementById('translateBtn')
+    const compareAllBtn = document.getElementById('compareAllBtn')
+    const singleOutWrap = document.getElementById('singleOutWrap')
+    const compareOutWrap = document.getElementById('compareOutWrap')
+    const outputBox = document.getElementById('outputBox')
+    const statsBox = document.getElementById('statsBox')
+    const compareGrid = document.getElementById('compareGrid')
+
+    let engine = null
+    let patcher = null
+    let selectedBtn = personaBtns.find((b) => b.classList.contains('active')) || personaBtns[1]
+    const patchBufferCache = new Map()
+
+    sampleSelect.onchange = () => {
+      if (sampleSelect.value) {
+        srcInput.value = sampleSelect.value
+      }
+    }
+
+    async function fetchPatchBuffer(url) {
+      if (patchBufferCache.has(url)) return patchBufferCache.get(url)
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`)
+      const buf = await res.arrayBuffer()
+      patchBufferCache.set(url, buf)
+      return buf
+    }
+
+    async function activatePersonaBtn(btn) {
+      if (!patcher) return
+      personaBtns.forEach((b) => b.classList.remove('active'))
+      btn.classList.add('active')
+      selectedBtn = btn
+
+      const persona = btn.dataset.persona
+      if (persona === 'vanilla') {
+        const t0 = performance.now()
+        await patcher.revert()
+        const dt = (performance.now() - t0).toFixed(2)
+        patchInspector.textContent = `🪴 Vanilla · Reverted in ${dt} ms`
+        return
+      }
+
+      const url = btn.dataset.url
+      const buf = await fetchPatchBuffer(url)
+      const stats = await patcher.applyFromBuffer(buf)
+      patchInspector.textContent =
+        `🪄 ${stats.personaName} · Hot-swapped in ${stats.elapsedMs.toFixed(1)} ms (${stats.modifiedRows} rows modified)`
+    }
+
+    for (const btn of personaBtns) {
+      btn.onclick = async () => {
+        await activatePersonaBtn(btn)
+        if (srcInput.value.trim()) {
+          await runSingleTranslation()
+        }
+      }
+    }
+
+    filePatchInput.onchange = async () => {
+      const file = filePatchInput.files?.[0]
+      if (!file || !patcher) return
+      const buf = await file.arrayBuffer()
+      personaBtns.forEach((b) => b.classList.remove('active'))
+      const stats = await patcher.applyFromBuffer(buf)
+      patchInspector.textContent =
+        `📂 ${file.name} · Applied in ${stats.elapsedMs.toFixed(1)} ms (${stats.modifiedRows} rows)`
+      if (srcInput.value.trim()) {
+        await runSingleTranslation()
+      }
+    }
+
+    loadBtn.onclick = async () => {
+      loadBtn.disabled = true
+      progWrap.style.display = 'block'
+      progBar.style.width = '0%'
+      try {
+        if (engine) {
+          engine.dispose()
+          engine = null
+        }
+        engine = await HachiueEngine.create({
+          url: baseModelSelect.value,
+          maxSeqLen: 1024,
+          onProgress: (p) => {
+            if (p.phase === 'weights' && p.totalBytes) {
+              const pct = ((p.loadedBytes / p.totalBytes) * 100).toFixed(1)
+              const mb = (p.loadedBytes / 1048576).toFixed(0)
+              const totMb = (p.totalBytes / 1048576).toFixed(0)
+              progBar.style.width = `${pct}%`
+              statusText.textContent = `${p.cached ? 'Loading from OPFS cache' : 'Streaming 16MiB Range chunks'}: ${mb} / ${totMb} MiB (${pct}%)`
+            } else if (p.message) {
+              statusText.textContent = p.message
+            }
+          },
+        })
+        patcher = new DioramaPatchManager(engine)
+        progWrap.style.display = 'none'
+        statusText.textContent = `Ready: ${engine.arch.modelName} (${engine.arch.layers}L, vocab=${engine.arch.vocab})`
+        personaBtns.forEach((b) => (b.disabled = false))
+        translateBtn.disabled = false
+        compareAllBtn.disabled = false
+        await activatePersonaBtn(selectedBtn)
+        await runSingleTranslation()
+      } catch (err) {
+        progWrap.style.display = 'none'
+        statusText.textContent = `Error: ${err.message || err}`
+        console.error(err)
+      } finally {
+        loadBtn.disabled = false
+      }
+    }
+
+    clearCacheBtn.onclick = async () => {
+      await clearModelCache()
+      statusText.textContent = 'Cleared OPFS / IndexedDB model cache.'
+    }
+
+    async function runSingleTranslation() {
+      if (!engine) return
+      const text = srcInput.value.trim()
+      if (!text) return
+      singleOutWrap.style.display = ''
+      compareOutWrap.style.display = 'none'
+      outputBox.textContent = ''
+      statsBox.textContent = ''
+      translateBtn.disabled = true
+      compareAllBtn.disabled = true
+      let streamed = ''
+      try {
+        engine.resetCache()
+        const res = await translateText(engine, {
+          text,
+          sourceLang: 'en',
+          targetLang: 'ja',
+          form: formSelect.value || undefined,
+          onToken: (_id, delta) => {
+            streamed += delta
+            outputBox.textContent = streamed
+          },
+        })
+        outputBox.textContent = res.translation
+        statsBox.textContent = `${res.stats.generatedTokens} tokens · ${res.stats.decodeTokensPerSec.toFixed(1)} tok/s · prefill ${res.stats.prefillMs.toFixed(0)} ms`
+      } finally {
+        translateBtn.disabled = false
+        compareAllBtn.disabled = false
+      }
+    }
+
+    translateBtn.onclick = runSingleTranslation
+
+    compareAllBtn.onclick = async () => {
+      if (!engine || !patcher) return
+      const text = srcInput.value.trim()
+      if (!text) return
+      singleOutWrap.style.display = 'none'
+      compareOutWrap.style.display = ''
+      compareGrid.innerHTML = ''
+      translateBtn.disabled = true
+      compareAllBtn.disabled = true
+
+      try {
+        for (const btn of personaBtns) {
+          await activatePersonaBtn(btn)
+          const row = document.createElement('div')
+          row.className = 'compare-row'
+          const lbl = document.createElement('div')
+          lbl.className = 'compare-label'
+          lbl.textContent = btn.querySelector('.p-title').textContent
+          const out = document.createElement('div')
+          out.textContent = '...'
+          row.appendChild(lbl)
+          row.appendChild(out)
+          compareGrid.appendChild(row)
+
+          engine.resetCache()
+          let streamed = ''
+          const res = await translateText(engine, {
+            text,
+            sourceLang: 'en',
+            targetLang: 'ja',
+            form: formSelect.value || undefined,
+            onToken: (_id, delta) => {
+              streamed += delta
+              out.textContent = streamed
+            },
+          })
+          out.textContent = res.translation
+        }
+      } finally {
+        translateBtn.disabled = false
+        compareAllBtn.disabled = false
+      }
+    }
+  </script>
+</body>
+</html>

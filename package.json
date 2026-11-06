@@ -1,0 +1,53 @@
+{
+  "name": "diorama",
+  "version": "0.1.0",
+  "description": "Weight-Space Modding Playground & Sparse Row Patcher (.safetensors) for PLaMo 3 Translate on WebGPU (powered by hachiue)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "patches",
+    "LICENSE",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/toyoshim-i/diorama.git"
+  },
+  "homepage": "https://toyoshim-i.github.io/diorama/",
+  "bugs": {
+    "url": "https://github.com/toyoshim-i/diorama/issues"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "build:patches": "npx tsx scripts/build_patches.ts"
+  },
+  "keywords": [
+    "webgpu",
+    "llm",
+    "translation",
+    "plamo",
+    "safetensors",
+    "weight-editing",
+    "hachiue"
+  ],
+  "license": "Apache-2.0",
+  "dependencies": {
+    "hachiue": "^0.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@webgpu/types": "^0.1.50",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
