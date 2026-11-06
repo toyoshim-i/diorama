@@ -752,8 +752,8 @@ async function run() {
       const pMix = 0.70 * wPeriod[i] + 0.25 * wHalfDot[i] + 0.15 * wFullDot[i];
       wOjouWa[i] = 0.92 * pMix + 0.60 * wQuestion[i] + 0.50 * wExclam[i] + 1.95 * dOjouComb[i] - 1.25 * uOjouQuestClean[i] - 0.80 * uRenyoClean[i];
       wOjouPeriod[i] = pMix - 1.05 * dOjouComb[i] - 0.80 * uRenyoClean[i];
-      wOjouExclam[i] = 0.85 * wExclam[i] + 0.35 * pMix - 0.85 * dOjouComb[i];
-      wOjouQuest[i] = 0.95 * wQuestion[i] - 0.60 * dOjouComb[i];
+      wOjouExclam[i] = 0.80 * wExclam[i] - 0.85 * dOjouComb[i];
+      wOjouQuest[i] = 1.02 * wQuestion[i] - 0.55 * dOjouComb[i];
     }
     setOjouOutVec(50902, wOjouWa);
     setOjouOutVec(50102, wOjouPeriod);

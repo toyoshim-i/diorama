@@ -42,6 +42,7 @@ jobs:
           cp -r dist/* _site/dist/
           cp -r examples/* _site/examples/
           sed 's|\.\./dist/index\.js|./dist/index.js|g' examples/index.html > _site/index.html
+          sed -i 's|\.\./patches/|https://huggingface.co/toyoshimax/plamo-3-translate-0.8b-diorama-patches/resolve/main/|g' _site/index.html _site/examples/index.html
           touch _site/.nojekyll
 
       - name: Setup Pages

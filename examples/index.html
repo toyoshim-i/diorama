@@ -201,25 +201,6 @@
       word-break: break-word;
       font-size: 16px;
     }
-    .compare-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 8px;
-    }
-    .compare-row {
-      display: grid;
-      grid-template-columns: 170px 1fr;
-      gap: 10px;
-      padding: 9px 12px;
-      border-radius: 8px;
-      background: var(--bg);
-      border: 1px solid var(--line);
-      align-items: baseline;
-    }
-    .compare-label {
-      font-weight: 700;
-      font-size: 13px;
-    }
     .stats {
       font-family: var(--mono);
       font-size: 11.5px;
@@ -270,24 +251,24 @@
           <span class="p-sub">0 B diff (Base GGUF)</span>
         </button>
         <button class="persona-btn active" data-persona="nyo" data-url="https://huggingface.co/toyoshimax/plamo-3-translate-0.8b-diorama-patches/resolve/main/plamo3-0.8b-nyo.safetensors" disabled>
-          <span class="p-title">🔔 Nyo (〜にょ)</span>
-          <span class="p-sub">792 KiB .safetensors</span>
+          <span class="p-title">🔔 Nyo (〜だにょ)</span>
+          <span class="p-sub">785 KiB .safetensors</span>
         </button>
         <button class="persona-btn" data-persona="nyu" data-url="https://huggingface.co/toyoshimax/plamo-3-translate-0.8b-diorama-patches/resolve/main/plamo3-0.8b-nyu.safetensors" disabled>
           <span class="p-title">🐾 Nyu (〜だにゅ)</span>
           <span class="p-sub">786 KiB .safetensors</span>
         </button>
         <button class="persona-btn" data-persona="ojousama" data-url="https://huggingface.co/toyoshimax/plamo-3-translate-0.8b-diorama-patches/resolve/main/plamo3-0.8b-ojousama.safetensors" disabled>
-          <span class="p-title">👑 Ojousama (〜ですわ)</span>
-          <span class="p-sub">791 KiB .safetensors</span>
+          <span class="p-title">👑 Ojousama (〜ですわ / 〜ますわ)</span>
+          <span class="p-sub">788 KiB .safetensors</span>
         </button>
         <button class="persona-btn" data-persona="neko" data-url="https://huggingface.co/toyoshimax/plamo-3-translate-0.8b-diorama-patches/resolve/main/plamo3-0.8b-neko.safetensors" disabled>
           <span class="p-title">🐱 Neko (〜にゃ)</span>
-          <span class="p-sub">792 KiB .safetensors</span>
+          <span class="p-sub">787 KiB .safetensors</span>
         </button>
         <button class="persona-btn" data-persona="usagi" data-url="https://huggingface.co/toyoshimax/plamo-3-translate-0.8b-diorama-patches/resolve/main/plamo3-0.8b-usagi.safetensors" disabled>
           <span class="p-title">🐰 Usagi (〜ぴょん)</span>
-          <span class="p-sub">792 KiB .safetensors</span>
+          <span class="p-sub">787 KiB .safetensors</span>
         </button>
       </div>
       <div class="patch-inspector" id="patchInspector">
@@ -328,19 +309,12 @@
 
       <textarea id="srcInput">If the error persists, please contact the system administrator.</textarea>
 
-      <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
-        <button id="compareAllBtn" disabled>✨ Compare All 6 Personas (Hot-Swap)</button>
+      <div style="display:flex;justify-content:flex-end;">
         <button id="translateBtn" class="primary" disabled>Translate</button>
       </div>
 
-      <div id="singleOutWrap">
-        <div class="output-box" id="outputBox"></div>
-        <div class="stats" id="statsBox" style="margin-top:6px;"></div>
-      </div>
-
-      <div id="compareOutWrap" style="display:none;">
-        <div class="compare-grid" id="compareGrid"></div>
-      </div>
+      <div class="output-box" id="outputBox"></div>
+      <div class="stats" id="statsBox" style="margin-top:6px;"></div>
     </div>
 
     <div style="font-size:12px;color:var(--muted);text-align:center;padding:4px 0 12px;">
@@ -367,12 +341,8 @@
     const formSelect = document.getElementById('formSelect')
     const srcInput = document.getElementById('srcInput')
     const translateBtn = document.getElementById('translateBtn')
-    const compareAllBtn = document.getElementById('compareAllBtn')
-    const singleOutWrap = document.getElementById('singleOutWrap')
-    const compareOutWrap = document.getElementById('compareOutWrap')
     const outputBox = document.getElementById('outputBox')
     const statsBox = document.getElementById('statsBox')
-    const compareGrid = document.getElementById('compareGrid')
 
     let engine = null
     let patcher = null
@@ -467,7 +437,6 @@
         statusText.textContent = `Ready: ${engine.arch.modelName} (${engine.arch.layers}L, vocab=${engine.arch.vocab})`
         personaBtns.forEach((b) => (b.disabled = false))
         translateBtn.disabled = false
-        compareAllBtn.disabled = false
         await activatePersonaBtn(selectedBtn)
         await runSingleTranslation()
       } catch (err) {
@@ -488,12 +457,9 @@
       if (!engine) return
       const text = srcInput.value.trim()
       if (!text) return
-      singleOutWrap.style.display = ''
-      compareOutWrap.style.display = 'none'
       outputBox.textContent = ''
       statsBox.textContent = ''
       translateBtn.disabled = true
-      compareAllBtn.disabled = true
       let streamed = ''
       try {
         engine.resetCache()
@@ -511,55 +477,11 @@
         statsBox.textContent = `${res.stats.generatedTokens} tokens · ${res.stats.decodeTokensPerSec.toFixed(1)} tok/s · prefill ${res.stats.prefillMs.toFixed(0)} ms`
       } finally {
         translateBtn.disabled = false
-        compareAllBtn.disabled = false
       }
     }
 
     translateBtn.onclick = runSingleTranslation
 
-    compareAllBtn.onclick = async () => {
-      if (!engine || !patcher) return
-      const text = srcInput.value.trim()
-      if (!text) return
-      singleOutWrap.style.display = 'none'
-      compareOutWrap.style.display = ''
-      compareGrid.innerHTML = ''
-      translateBtn.disabled = true
-      compareAllBtn.disabled = true
-
-      try {
-        for (const btn of personaBtns) {
-          await activatePersonaBtn(btn)
-          const row = document.createElement('div')
-          row.className = 'compare-row'
-          const lbl = document.createElement('div')
-          lbl.className = 'compare-label'
-          lbl.textContent = btn.querySelector('.p-title').textContent
-          const out = document.createElement('div')
-          out.textContent = '...'
-          row.appendChild(lbl)
-          row.appendChild(out)
-          compareGrid.appendChild(row)
-
-          engine.resetCache()
-          let streamed = ''
-          const res = await translateText(engine, {
-            text,
-            sourceLang: 'en',
-            targetLang: 'ja',
-            form: formSelect.value || undefined,
-            onToken: (_id, delta) => {
-              streamed += delta
-              out.textContent = streamed
-            },
-          })
-          out.textContent = res.translation
-        }
-      } finally {
-        translateBtn.disabled = false
-        compareAllBtn.disabled = false
-      }
-    }
   </script>
 </body>
 </html>
